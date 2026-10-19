@@ -15,6 +15,9 @@ typedef struct {
  uint32_t card_type, card_logical_blocks;
  uint32_t first_read_signature;
  uint32_t read_retries,read_crc_failures,last_failed_read_error;
+ uint32_t write_attempts, write_hal_status, write_hal_error, write_sector, write_blocks;
+ uint32_t write_clkcr, write_cmd, write_response1, write_sta, write_dcount;
+ uint32_t write_failures, last_failed_write_error;
  uint32_t sector_trace_count;
  sd_sector_debug_t sector_trace[4];
 } sd_io_debug_t;

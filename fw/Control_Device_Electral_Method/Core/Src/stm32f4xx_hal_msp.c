@@ -250,7 +250,12 @@ void HAL_SD_MspInit(SD_HandleTypeDef* hsd)
     HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
     /* USER CODE BEGIN SDIO_MspInit 1 */
-
+    /* CMD and DAT must idle high, including unused DAT1..3 in one-bit mode.
+     * Keep CK push-pull without a pull resistor. */
+    GPIO_InitStruct.Pull = GPIO_PULLUP;
+    HAL_GPIO_Init(GPIOD, &GPIO_InitStruct); /* PD2 / CMD */
+    GPIO_InitStruct.Pin = GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_11;
+    HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
     /* USER CODE END SDIO_MspInit 1 */
 
   }

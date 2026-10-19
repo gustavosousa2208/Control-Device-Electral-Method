@@ -20,3 +20,10 @@ core/format.c
 core/calibration.c
 ui/ui.c
 ui/assets.c
+# Modules restored from the original local project (required by current app).
+board/sofia_io.c
+drivers/hw_debug.c
+core/sofia.c
+core/thermal_tsp.c
+core/tc_calibration.c
+core/tc_heater.c

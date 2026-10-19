@@ -800,7 +800,7 @@ HAL_StatusTypeDef HAL_SD_WriteBlocks(SD_HandleTypeDef *hsd, uint8_t *pData, uint
   uint32_t add = BlockAdd;
   uint8_t *tempbuff = pData;
 
-  if(NULL == pData)
+  if((NULL == pData) || (NumberOfBlocks == 0U))
   {
     hsd->ErrorCode |= HAL_SD_ERROR_PARAM;
     return HAL_ERROR;
@@ -810,7 +810,9 @@ HAL_StatusTypeDef HAL_SD_WriteBlocks(SD_HandleTypeDef *hsd, uint8_t *pData, uint
   {
     hsd->ErrorCode = HAL_SD_ERROR_NONE;
 
-    if((add + NumberOfBlocks) > (hsd->SdCard.LogBlockNbr))
+    if((add >= hsd->SdCard.LogBlockNbr) ||
+       (NumberOfBlocks > (hsd->SdCard.LogBlockNbr - add)) ||
+       (NumberOfBlocks > (0x01FFFFFFU / BLOCKSIZE)))
     {
       hsd->ErrorCode |= HAL_SD_ERROR_ADDR_OUT_OF_RANGE;
       return HAL_ERROR;
@@ -825,15 +827,6 @@ HAL_StatusTypeDef HAL_SD_WriteBlocks(SD_HandleTypeDef *hsd, uint8_t *pData, uint
     {
       add *= 512U;
     }
-
-    /* Configure the SD DPSM (Data Path State Machine) */
-    config.DataTimeOut   = SDMMC_DATATIMEOUT;
-    config.DataLength    = NumberOfBlocks * BLOCKSIZE;
-    config.DataBlockSize = SDIO_DATABLOCK_SIZE_512B;
-    config.TransferDir   = SDIO_TRANSFER_DIR_TO_CARD;
-    config.TransferMode  = SDIO_TRANSFER_MODE_BLOCK;
-    config.DPSM          = SDIO_DPSM_ENABLE;
-    (void)SDIO_ConfigData(hsd->Instance, &config);
 
     /* Write Blocks in Polling mode */
     if(NumberOfBlocks > 1U)
@@ -859,6 +852,19 @@ HAL_StatusTypeDef HAL_SD_WriteBlocks(SD_HandleTypeDef *hsd, uint8_t *pData, uint
       hsd->Context = SD_CONTEXT_NONE;
       return HAL_ERROR;
     }
+
+    /* Start transmission only after CMD24/CMD25 has been accepted. Enabling
+     * the transmit DPSM before the command can start an empty FIFO while the
+     * CPU is still waiting for the command response (not servicing TXFIFOHE).
+     * Keep the read path unchanged: reception must be armed before CMD17/18. */
+    /* Configure the SD DPSM (Data Path State Machine) */
+    config.DataTimeOut   = SDMMC_DATATIMEOUT;
+    config.DataLength    = NumberOfBlocks * BLOCKSIZE;
+    config.DataBlockSize = SDIO_DATABLOCK_SIZE_512B;
+    config.TransferDir   = SDIO_TRANSFER_DIR_TO_CARD;
+    config.TransferMode  = SDIO_TRANSFER_MODE_BLOCK;
+    config.DPSM          = SDIO_DPSM_ENABLE;
+    (void)SDIO_ConfigData(hsd->Instance, &config);
 
     /* Write block(s) in polling mode */
     dataremaining = config.DataLength;
@@ -893,7 +899,8 @@ HAL_StatusTypeDef HAL_SD_WriteBlocks(SD_HandleTypeDef *hsd, uint8_t *pData, uint
       {
         /* Clear all the static flags */
         __HAL_SD_CLEAR_FLAG(hsd, SDIO_STATIC_FLAGS);
-        hsd->ErrorCode |= errorstate;
+        hsd->ErrorCode |= HAL_SD_ERROR_TIMEOUT;
+        hsd->Instance->DCTRL = 0U;
         hsd->State = HAL_SD_STATE_READY;
         hsd->Context = SD_CONTEXT_NONE;
         return HAL_TIMEOUT;
@@ -956,9 +963,20 @@ HAL_StatusTypeDef HAL_SD_WriteBlocks(SD_HandleTypeDef *hsd, uint8_t *pData, uint
       /* Nothing to do */
     }
 
+    /* DATAEND alone must not turn a partial payload into a successful write. */
+    if (dataremaining != 0U)
+    {
+      __HAL_SD_CLEAR_FLAG(hsd, SDIO_STATIC_DATA_FLAGS);
+      hsd->Instance->DCTRL = 0U;
+      hsd->ErrorCode |= HAL_SD_ERROR_DATA_TIMEOUT;
+      hsd->State = HAL_SD_STATE_READY;
+      hsd->Context = SD_CONTEXT_NONE;
+      return HAL_ERROR;
+    }
     /* Clear all the static flags */
     __HAL_SD_CLEAR_FLAG(hsd, SDIO_STATIC_DATA_FLAGS);
 
+    hsd->Context = SD_CONTEXT_NONE;
     hsd->State = HAL_SD_STATE_READY;
 
     return HAL_OK;

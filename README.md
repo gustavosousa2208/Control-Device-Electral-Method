@@ -1,4 +1,7 @@
 # Control-Device-Electral-Method
+
+Firmware: [build and test instructions](fw/Control_Device_Electral_Method/BUILDING.md) · [SD diagnosis and resolution](fw/Control_Device_Electral_Method/SD_WRITE_FIX.md).
+
 # Arquitetura do Firmware — Caracterizador Térmico (STM32F407VET6)
 
 referências: Kauê Lucas (diagrama "Thermal Hardware Architecture", 08/10/2026).

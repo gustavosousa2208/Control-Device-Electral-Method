@@ -153,14 +153,26 @@ __weak uint8_t BSP_SD_ReadBlocks(uint32_t *pData, uint32_t ReadAddr, uint32_t Nu
   */
 __weak uint8_t BSP_SD_WriteBlocks(uint32_t *pData, uint32_t WriteAddr, uint32_t NumOfBlocks, uint32_t Timeout)
 {
-  uint8_t sd_state = MSD_OK;
-
-  if (HAL_SD_WriteBlocks(&hsd, (uint8_t *)pData, WriteAddr, NumOfBlocks, Timeout) != HAL_OK)
+  /* Capture before any CMD13/status poll can overwrite hsd.ErrorCode.
+   * Never retry writes automatically: an error may follow a partial commit. */
+  g_sd_io_debug.write_sector = WriteAddr;
+  g_sd_io_debug.write_blocks = NumOfBlocks;
+  g_sd_io_debug.write_attempts++;
+  HAL_StatusTypeDef result = HAL_SD_WriteBlocks(&hsd, (uint8_t *)pData,
+                                               WriteAddr, NumOfBlocks, Timeout);
+  g_sd_io_debug.write_hal_status = result;
+  g_sd_io_debug.write_hal_error = hsd.ErrorCode;
+  g_sd_io_debug.write_clkcr = hsd.Instance->CLKCR;
+  g_sd_io_debug.write_cmd = hsd.Instance->CMD;
+  g_sd_io_debug.write_response1 = hsd.Instance->RESP1;
+  g_sd_io_debug.write_sta = hsd.Instance->STA;
+  g_sd_io_debug.write_dcount = hsd.Instance->DCOUNT;
+  if (result != HAL_OK)
   {
-    sd_state = MSD_ERROR;
+    g_sd_io_debug.write_failures++;
+    g_sd_io_debug.last_failed_write_error = hsd.ErrorCode;
   }
-
-  return sd_state;
+  return result == HAL_OK ? MSD_OK : MSD_ERROR;
 }
 
 /* USER CODE BEGIN BeforeReadDMABlocksSection */

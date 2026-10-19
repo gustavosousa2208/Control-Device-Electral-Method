@@ -20,6 +20,7 @@ bool sdlog_ready(void)
 const char *sdlog_run_name(void) { return run_name; }
 #if THERMAL_USE_FATFS
 #include "ff.h"
+#include "stm32f4xx_hal.h"
 static FATFS fs;
 static FIL run;
 static bool write_exact(FIL *file, const char *text)
@@ -41,11 +42,19 @@ void sdlog_init(void)
     open_run = false; run_name[0] = 0;
     g_hw_debug.sd_mount_result = -1;
     mounted = false;
-    if (board_sd_is_ready()) {
+    /* A cold card can identify successfully before its first sector reads are
+     * reliable. Repeat the existing manual recovery sequence at most twice.
+     * Mounting is read-only; never retry a failed file write here. This runs
+     * only at startup or the explicit idle long-press, not in the job loop. */
+    for (unsigned attempt = 0; attempt < 3U && board_sd_is_ready(); ++attempt) {
         FRESULT result = f_mount(&fs,THERMAL_SD_VOLUME,1);
         g_hw_debug.sd_mount_result = result;
         mounted = result == FR_OK;
         g_sd_filesystem_type = mounted ? fs.fs_type : 0U;
+        if (mounted || attempt == 2U) break;
+        (void)f_mount(NULL,THERMAL_SD_VOLUME,0);
+        HAL_Delay(250U);
+        if (!board_sd_prepare()) break;
     }
 }
 bool sdlog_open_run(bool calibration)

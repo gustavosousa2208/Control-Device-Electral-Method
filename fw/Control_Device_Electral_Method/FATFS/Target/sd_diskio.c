@@ -223,8 +223,15 @@ DRESULT SD_ioctl(BYTE lun, BYTE cmd, void *buff)
   {
   /* Make sure that no pending write process */
   case CTRL_SYNC :
+  {
+    uint32_t started = HAL_GetTick();
+    while (BSP_SD_GetCardState() != MSD_OK)
+    {
+      if ((uint32_t)(HAL_GetTick() - started) >= SD_TIMEOUT) return RES_ERROR;
+    }
     res = RES_OK;
     break;
+  }
 
   /* Get number of sectors on the disk (DWORD) */
   case GET_SECTOR_COUNT :

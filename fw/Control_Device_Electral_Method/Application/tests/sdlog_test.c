@@ -6,16 +6,27 @@
 #include "sdlog.h"
 static struct { char name[40], content[2048]; size_t size; } files[16];
 static bool card=true, short_write;
+static unsigned mount_calls, mount_failures, prepares, delays, opens;
+static bool prepare_ok=true;
 bool board_sd_is_ready(void) { return card; }
+bool board_sd_prepare(void) { prepares++;return prepare_ok; }
+void HAL_Delay(uint32_t ms) { assert(ms==250U);delays++; }
 static int find(const char *name)
 {
     for(int i=0;i<16;i++) if(strcmp(files[i].name,name)==0)return i;
     return -1;
 }
 FRESULT f_mount(FATFS *fs,const char *path,BYTE opt)
-{ (void)fs;(void)path;(void)opt; return card?FR_OK:FR_DISK_ERR; }
+{
+    (void)path;(void)opt;
+    if (!fs) return FR_OK;
+    mount_calls++;
+    if (mount_failures) { mount_failures--;return FR_DISK_ERR; }
+    return card?FR_OK:FR_DISK_ERR;
+}
 FRESULT f_open(FIL *file,const char *name,BYTE mode)
 {
+    opens++;
     if(!card)return FR_DISK_ERR;
     int i=find(name);
     if(i>=0 && (mode&FA_CREATE_NEW))return FR_EXIST;
@@ -58,6 +69,14 @@ FRESULT f_rename(const char *from,const char *to)
 }
 int main(void)
 {
+    mount_failures=1;sdlog_init();assert(sdlog_ready());
+    assert(mount_calls==2 && prepares==1 && delays==1 && opens==0);
+    mount_calls=prepares=delays=0;mount_failures=10;
+    sdlog_init();assert(!sdlog_ready());
+    assert(mount_calls==3 && prepares==2 && delays==2 && opens==0);
+    mount_calls=prepares=delays=0;mount_failures=1;prepare_ok=false;
+    sdlog_init();assert(!sdlog_ready() && mount_calls==1 && prepares==1);
+    prepare_ok=true;mount_failures=0;
     sdlog_init();assert(sdlog_ready());
     assert(sdlog_open_run(true)); assert(strcmp(sdlog_run_name(),"0:/CAL_001.CSV")==0);
     assert(sdlog_line("0,25.00,25.00,0.60000"));assert(sdlog_close());

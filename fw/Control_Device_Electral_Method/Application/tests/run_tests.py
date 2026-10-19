@@ -81,7 +81,7 @@ with tempfile.TemporaryDirectory(prefix='thermal-tests-') as temp:
         exe = Path(temp) / (name + '.exe')
         subprocess.run(cmd + [str(root / p) for p in sources] + ['-lm', '-o', str(exe)], check=True)
         if name == 'ui':
-            preview=root/'preview';preview.mkdir(exist_ok=True)
+            preview=Path(temp)/'preview';preview.mkdir(exist_ok=True)
             subprocess.run([str(exe),str(preview)],check=True)
         else:
             subprocess.run([str(exe)], check=True)
@@ -91,10 +91,12 @@ with tempfile.TemporaryDirectory(prefix='thermal-tests-') as temp:
         str(root/'board/peripheral_io.c'),'-o',str(Path(temp)/'peripheral_io.o')],check=True)
     subprocess.run(common + ['-I'+str(root/'tests/stubs'),'-c', str(root/'board/sofia_io.c'),'-o',str(Path(temp)/'sofia_io.o')],check=True)
     print('HAL peripheral adapter syntax: PASS',flush=True)
-print('All host checks passed. No real STM32 HAL build or hardware validation.')
 
 # Real filesystem integration: temporary images only, never physical cards.
 import sys
 subprocess.run([sys.executable,str(root/"tests/run_filesystems_test.py")],check=True)
 
 subprocess.run([sys.executable,str(root/'tests/sd_polling_complete_test.py')],check=True)
+
+subprocess.run([sys.executable,str(root/'tests/sd_write_test.py')],check=True)
+print('All host checks passed. Hardware validation is separate.',flush=True)
